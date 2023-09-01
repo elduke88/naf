@@ -43,6 +43,6 @@ variable "runtime_stack" {
 
 variable "PAT_TOKEN" {
   type = string
-  default = "ka4mgn3yyaio3teghpngqlhcfnxupih5aiorgnd2f4dzbmcnramq"
+  default = "xxx"
   description = "pat token"
 }
