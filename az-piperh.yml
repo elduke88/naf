@@ -1,0 +1,91 @@
+# Azure Pipeline that runs basic continuous integration on a Terraform project
+
+# Trigger on specific branches and paths
+trigger:
+  branches:
+    include:
+      - naftest
+  paths:
+    include:
+      - /naftest
+
+# Define repositories
+resources:
+  repositories:
+    - repository: modules
+      type: git
+      name: "modules"
+
+# Define variables used in the pipeline
+variables:
+  subscription_id: '7b91df65-1f96-40d9-bcef-a3f85479ad2b'
+  tenant_id: '04986fa2-6d28-46f7-966a-b1ac32f74fa8'
+  serviceConnection1: 'TerraformSC'
+  org_service_url: 'https://dev.azure.com/NAFTechnologyServices'
+  azureLocation: 'us-west-3'
+  terraformWorkingDirectory: '$(System.DefaultWorkingDirectory)'
+  terraformVersion: $(latest)
+
+# Define pipeline stages
+stages:
+  - stage: TerraformContinuousIntegration
+    displayName: Terraform Module - CI
+    jobs:
+      - job: TerraformContinuousIntegrationJob
+        displayName: TerraformContinuousIntegration - CI Job
+        pool:
+          vmImage: ubuntu-20.04
+        steps:
+          - checkout: modules
+
+          # Authenticate to modules repository using PAT
+          - script: git config --global url."https://$(PAT_TOKEN)@dev.azure.com/".insteadOf "https://dev.azure.com/"
+            displayName: 'Authenticate with PAT'
+            env: 
+              PAT_TOKEN: $(PatToken)
+
+          # Pass necessary environment variables to Terraform commands
+          - task: TerraformCLI@0
+            displayName: 'Run terraform init'
+            inputs:
+              command: init
+              workingDirectory: $(terraformWorkingDirectory)
+              environmentServiceName: $(serviceConnection1)
+              terraformVersion: $(latest)
+              backendConfig: '-backend-config="access_key=$(SecretKey)"'
+            env:
+              ARM_SUBSCRIPTION_ID: $(subscription_id)
+              ARM_TENANT_ID: $(tenant_id)
+
+          # Run Terraform validate
+          - task: TerraformCLI@0
+            displayName: 'Run terraform validate'
+            inputs:
+              command: validate
+              workingDirectory: $(terraformWorkingDirectory)
+              environmentServiceName: $(serviceConnection1)
+              terraformVersion: $(latest)
+
+          # Verify module files with Checkov
+          - bash: checkov --directory $(System.DefaultWorkingDirectory)
+            displayName: 'Verify modules with Checkov'
+
+          # Run Terraform plan
+          - task: TerraformCLI@0
+            displayName: 'Run terraform plan'
+            inputs:
+              command: plan
+              workingDirectory: $(terraformWorkingDirectory)
+              environmentServiceName: $(serviceConnection1)
+              terraformVersion: $(latest)
+
+          # Run Terraform apply
+          - task: TerraformCLI@0
+            displayName: 'Run terraform apply'
+            inputs:
+              command: apply
+              workingDirectory: $(terraformWorkingDirectory)
+              environmentServiceName: $(serviceConnection1)
+              terraformVersion: $(latest)
+
+            
